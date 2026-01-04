@@ -2,6 +2,7 @@ services:
   - type: web
     name: luna-book
     env: python
+    runtime: python
     region: oregon
     plan: free
     branch: main
@@ -10,6 +11,4 @@ services:
     healthCheckPath: /
     envVars:
       - key: PYTHON_VERSION
-        value: 3.9.16
-      - key: PORT
-        generateValue: true
+        value: 3.9.18
