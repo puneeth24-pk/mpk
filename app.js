@@ -3,6 +3,9 @@ class LunaBook {
         this.cells = [];
         this.cellCounter = 0;
         this.ws = null;
+        this.executingCells = new Set(); // Track which cells are currently executing
+        this.kernelBusy = false; // Track if kernel is processing
+        this.cellCompletionCallbacks = {}; // Callbacks for when cells complete
         this.init();
     }
 
@@ -146,9 +149,23 @@ class LunaBook {
             if (spinner) spinner.style.display = 'none';
             outputElement.classList.add('success');
 
+            // Clear execution state
+            this.executingCells.delete(cellId);
+            this.kernelBusy = false;
+
+            // Call completion callback if exists (for runAllCells)
+            if (this.cellCompletionCallbacks[cellId]) {
+                this.cellCompletionCallbacks[cellId]();
+                delete this.cellCompletionCallbacks[cellId];
+            }
+
         } else if (msg.type === 'restart_success') {
             alert(msg.content);
             this.clearAllOutputs();
+            // Clear execution state on restart
+            this.executingCells.clear();
+            this.kernelBusy = false;
+            this.cellCompletionCallbacks = {};
         }
     }
 
@@ -593,12 +610,20 @@ class LunaBook {
         const cell = this.cells.find(c => c.id === cellId);
         if (!cell) return;
 
+        // Check if this cell is already executing
+        if (this.executingCells.has(cellId)) {
+            console.warn(`Cell ${cellId} is already executing`);
+            return;
+        }
+
         const cellElement = document.getElementById(cellId);
         const outputElement = document.getElementById(`output-${cellId}`);
 
         this.clearCellOutput(cellId);
 
         cellElement.classList.add('executing');
+        this.executingCells.add(cellId);
+        this.kernelBusy = true;
 
         // Show spinner
         const spinner = cellElement.querySelector('.cell-spinner');
@@ -618,15 +643,51 @@ class LunaBook {
         } else {
             outputElement.innerHTML = 'Error: Backend not connected';
             cellElement.classList.remove('executing');
+            this.executingCells.delete(cellId);
+            this.kernelBusy = false;
             if (spinner) spinner.style.display = 'none';
         }
     }
 
     async runAllCells() {
-        for (const cell of this.cells) {
-            await this.runCell(cell.id);
-            await new Promise(resolve => setTimeout(resolve, 200));
+        if (this.cells.length === 0) {
+            alert('No cells to run!');
+            return;
         }
+
+        console.log('Running all cells sequentially...');
+
+        for (let i = 0; i < this.cells.length; i++) {
+            const cell = this.cells[i];
+            console.log(`Running cell ${i + 1}/${this.cells.length}: ${cell.id}`);
+
+            // Run cell and wait for completion
+            await this.runCellAndWait(cell.id);
+
+            // Small delay between cells for visual feedback
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+
+        console.log('All cells executed successfully!');
+    }
+
+    async runCellAndWait(cellId) {
+        return new Promise((resolve) => {
+            // Set up completion callback
+            this.cellCompletionCallbacks[cellId] = resolve;
+
+            // Run the cell
+            this.runCell(cellId);
+
+            // Timeout after 60 seconds
+            setTimeout(() => {
+                if (this.cellCompletionCallbacks[cellId]) {
+                    console.warn(`Cell ${cellId} execution timeout`);
+                    delete this.cellCompletionCallbacks[cellId];
+                    resolve();
+                }
+            }, 60000);
+        });
     }
 
     clearCellOutput(cellId) {
@@ -651,6 +712,30 @@ class LunaBook {
     }
 
     async restartKernel() {
+        const confirmed = confirm('Restart kernel? All variables will be lost and outputs will be cleared.');
+        if (!confirmed) return;
+
+        console.log('Restarting kernel...');
+
+        // Clear all execution states
+        this.executingCells.clear();
+        this.kernelBusy = false;
+        this.cellCompletionCallbacks = {};
+
+        // Clear UI state for all cells
+        this.cells.forEach(cell => {
+            const cellElement = document.getElementById(cell.id);
+            if (cellElement) {
+                cellElement.classList.remove('executing');
+                const spinner = cellElement.querySelector('.cell-spinner');
+                if (spinner) spinner.style.display = 'none';
+            }
+        });
+
+        // Clear all outputs
+        this.clearAllOutputs();
+
+        // Send restart command to backend
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify({ type: 'restart' }));
         } else {

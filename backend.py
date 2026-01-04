@@ -37,6 +37,8 @@ class KernelSession:
         self.km = None
         self.kc = None
         self.started = False
+        self.current_execution = None  # Track current executing cell_id
+        self.is_executing = False  # Flag to track if kernel is busy
 
     async def start(self):
         logger.info(f"Starting kernel for session {self.session_id}")
@@ -82,77 +84,101 @@ import numpy as np
             await websocket.send_json({"type": "error", "cellId": cell_id, "content": "Kernel not running"})
             return
 
-        msg_id = self.kc.execute(code)
-        
-        # Poll for messages
-        while True:
-            try:
-                # Check iopub
-                try:
-                    # print("Checking iopub...")
-                    msg = await self.kc.get_iopub_msg(timeout=0.05)
-                    # print(f"Got iopub message: {msg['header']['msg_type']}")
-                    await self._handle_iopub(websocket, msg, cell_id, msg_id)
-                    
-                    if msg['header']['msg_type'] == 'status' and \
-                       msg['content']['execution_state'] == 'idle' and \
-                       msg['parent_header']['msg_id'] == msg_id:
-                        print("Execution finished (idle status received)")
-                        break
-                except (asyncio.QueueEmpty, queue.Empty):
-                    pass
-                except Exception as e:
-                    print(f"Error checking iopub: {e}")
-                
-                # Check stdin
-                try:
-                    msg = await self.kc.get_stdin_msg(timeout=0.05)
-                    if msg['parent_header']['msg_id'] == msg_id:
-                         if msg['header']['msg_type'] == 'input_request':
-                            # print(f"Got input request: {msg['content']['prompt']}")
-                            # Send input request to frontend
-                            await websocket.send_json({
-                                "type": "input_request",
-                                "cellId": cell_id,
-                                "prompt": msg['content']['prompt']
-                            })
-                            
-                            # Wait for input reply from frontend
-                            while True:
-                                data = await websocket.receive_text()
-                                message = json.loads(data)
-                                
-                                if message.get("type") == "input_reply":
-                                    value = message.get("value")
-                                    self.kc.input(value)
-                                    break
-                                
-                                elif message.get("type") == "restart":
-                                    logger.info("Restart requested while waiting for input")
-                                    await self.shutdown()
-                                    await self.start()
-                                    await websocket.send_json({"type": "restart_success", "content": "Kernel restarted successfully"})
-                                    return # Exit execution immediately
-                                     
-                                else:
-                                    # We received something else while waiting for input.
-                                    # We can't process it right now. Warn the user.
-                                    print(f"Ignored message type {message.get('type')} while waiting for input")
-                                    await websocket.send_json({
-                                        "type": "error",
-                                        "cellId": cell_id,
-                                        "traceback": ["Kernel is waiting for input. Please complete the input prompt first or Restart Runtime."]
-                                    })
-                except (asyncio.QueueEmpty, queue.Empty):
-                    pass
-                except Exception as e:
-                    print(f"Error checking stdin: {e}")
-                
-                await asyncio.sleep(0.01)
+        # Check if already executing
+        if self.is_executing:
+            await websocket.send_json({
+                "type": "error", 
+                "cellId": cell_id, 
+                "traceback": [f"Kernel is busy executing cell {self.current_execution}. Please wait or restart kernel."]
+            })
+            await websocket.send_json({"type": "complete", "cellId": cell_id})
+            return
 
-            except Exception as e:
-                logger.error(f"Error during execution: {e}")
-                break
+        # Mark as executing
+        self.is_executing = True
+        self.current_execution = cell_id
+        logger.info(f"Starting execution for cell {cell_id}")
+
+        try:
+            msg_id = self.kc.execute(code)
+            
+            # Poll for messages
+            while True:
+                try:
+                    # Check iopub
+                    try:
+                        msg = await self.kc.get_iopub_msg(timeout=0.05)
+                        await self._handle_iopub(websocket, msg, cell_id, msg_id)
+                        
+                        if msg['header']['msg_type'] == 'status' and \
+                           msg['content']['execution_state'] == 'idle' and \
+                           msg['parent_header']['msg_id'] == msg_id:
+                            logger.info(f"Execution finished for cell {cell_id}")
+                            break
+                    except (asyncio.QueueEmpty, queue.Empty):
+                        pass
+                    except Exception as e:
+                        logger.error(f"Error checking iopub: {e}")
+                    
+                    # Check stdin - FASTER timeout for quicker input detection
+                    try:
+                        msg = await self.kc.get_stdin_msg(timeout=0.01)
+                        if msg['parent_header']['msg_id'] == msg_id:
+                             if msg['header']['msg_type'] == 'input_request':
+                                logger.info(f"Input requested for cell {cell_id}: {msg['content']['prompt']}")
+                                # Send input request to frontend IMMEDIATELY
+                                await websocket.send_json({
+                                    "type": "input_request",
+                                    "cellId": cell_id,
+                                    "prompt": msg['content']['prompt']
+                                })
+                                
+                                # Wait for input reply from frontend
+                                while True:
+                                    data = await websocket.receive_text()
+                                    message = json.loads(data)
+                                    
+                                    if message.get("type") == "input_reply":
+                                        value = message.get("value")
+                                        self.kc.input(value)
+                                        logger.info(f"Input received for cell {cell_id}: {value}")
+                                        break
+                                    
+                                    elif message.get("type") == "restart":
+                                        logger.info("Restart requested while waiting for input")
+                                        self.is_executing = False
+                                        self.current_execution = None
+                                        await self.shutdown()
+                                        await self.start()
+                                        await websocket.send_json({"type": "restart_success", "content": "Kernel restarted successfully"})
+                                        return # Exit execution immediately
+                                    
+                                    elif message.get("type") == "execute":
+                                        # Another cell trying to execute
+                                        await websocket.send_json({
+                                            "type": "error",
+                                            "cellId": message.get("cellId"),
+                                            "traceback": ["Kernel is waiting for input. Please complete the input prompt first or Restart Runtime."]
+                                        })
+                                        await websocket.send_json({"type": "complete", "cellId": message.get("cellId")})
+                                    else:
+                                        logger.warning(f"Ignored message type {message.get('type')} while waiting for input")
+                    except (asyncio.QueueEmpty, queue.Empty):
+                        pass
+                    except Exception as e:
+                        logger.error(f"Error checking stdin: {e}")
+                    
+                    await asyncio.sleep(0.01)
+
+                except Exception as e:
+                    logger.error(f"Error during execution: {e}")
+                    break
+            
+        finally:
+            # Always clear execution state
+            self.is_executing = False
+            self.current_execution = None
+            logger.info(f"Cleared execution state for cell {cell_id}")
         
         await websocket.send_json({"type": "complete", "cellId": cell_id})
 
