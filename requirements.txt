@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+jupyter_client
+ipykernel
+numpy
+pandas
+matplotlib
+websockets
