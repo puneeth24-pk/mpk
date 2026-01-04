@@ -107,7 +107,7 @@ import numpy as np
                 try:
                     # Check iopub
                     try:
-                        msg = await self.kc.get_iopub_msg(timeout=0.05)
+                        msg = await self.kc.get_iopub_msg(timeout=0.02)  # Reduced from 0.05 to 0.02
                         await self._handle_iopub(websocket, msg, cell_id, msg_id)
                         
                         if msg['header']['msg_type'] == 'status' and \
@@ -168,7 +168,8 @@ import numpy as np
                     except Exception as e:
                         logger.error(f"Error checking stdin: {e}")
                     
-                    await asyncio.sleep(0.01)
+                    # Reduced sleep time for faster response (10x improvement)
+                    await asyncio.sleep(0.001)  # 1ms instead of 10ms
 
                 except Exception as e:
                     logger.error(f"Error during execution: {e}")
