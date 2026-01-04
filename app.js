@@ -22,6 +22,12 @@ class LunaBook {
     showNotebook() {
         document.getElementById('home-page').classList.add('hidden');
         document.getElementById('notebook-page').classList.remove('hidden');
+
+        // Reset to fresh notebook when coming from home page
+        if (this.cells.length === 0) {
+            this.addCell();
+        }
+
         // Refresh Monaco editors as they don't render correctly when initialized hidden
         setTimeout(() => this.refreshEditors(), 50);
     }
@@ -29,6 +35,9 @@ class LunaBook {
     showHome() {
         document.getElementById('notebook-page').classList.add('hidden');
         document.getElementById('home-page').classList.remove('hidden');
+
+        // Clear notebook when going back to home (fresh start next time)
+        this.clearNotebook();
     }
 
     refreshEditors() {
@@ -268,6 +277,7 @@ class LunaBook {
         document.getElementById('start-coding-btn')?.addEventListener('click', () => this.showNotebook());
         document.getElementById('back-home-btn')?.addEventListener('click', () => this.showHome());
 
+        document.getElementById('new-notebook-btn').addEventListener('click', () => this.newNotebook());
         document.getElementById('run-all-btn').addEventListener('click', () => this.runAllCells());
         document.getElementById('clear-all-btn').addEventListener('click', () => this.clearAllOutputs());
         document.getElementById('restart-btn').addEventListener('click', () => this.restartKernel());
@@ -291,6 +301,15 @@ class LunaBook {
         const fileInput = document.getElementById('file-upload');
         uploadBtn.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', (e) => this.uploadFile(e));
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            // Ctrl+N or Cmd+N for New Notebook
+            if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+                e.preventDefault();
+                this.newNotebook();
+            }
+        });
     }
 
     async openNotebook() {
@@ -740,6 +759,64 @@ class LunaBook {
             this.ws.send(JSON.stringify({ type: 'restart' }));
         } else {
             alert("Backend not connected, cannot restart.");
+        }
+    }
+
+    async newNotebook() {
+        // Check if there are cells with content
+        const hasContent = this.cells.some(cell => {
+            const code = cell.editor ? cell.editor.getValue() : cell.code;
+            return code.trim().length > 0;
+        });
+
+        // Ask for confirmation if there's content
+        if (hasContent) {
+            const confirmed = confirm('Create new notebook? Current notebook will be cleared. Make sure to save your work first!');
+            if (!confirmed) return;
+        }
+
+        console.log('Creating new notebook...');
+
+        // Clear notebook and restart kernel
+        this.clearNotebook();
+
+        // Restart kernel for fresh state
+        await this.restartKernelSilent();
+
+        // Add initial cell
+        this.addCell();
+
+        console.log('New notebook created!');
+    }
+
+    clearNotebook() {
+        // Clear all execution states
+        this.executingCells.clear();
+        this.kernelBusy = false;
+        this.cellCompletionCallbacks = {};
+
+        // Remove all cells from DOM
+        document.getElementById('cells-container').innerHTML = '';
+
+        // Clear cells array
+        this.cells = [];
+        this.cellCounter = 0;
+
+        console.log('Notebook cleared');
+    }
+
+    async restartKernelSilent() {
+        // Restart kernel without confirmation dialog (used internally)
+        console.log('Restarting kernel silently...');
+
+        // Clear all execution states
+        this.executingCells.clear();
+        this.kernelBusy = false;
+        this.cellCompletionCallbacks = {};
+
+        // Send restart command to backend
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify({ type: 'restart' }));
         }
     }
 }
