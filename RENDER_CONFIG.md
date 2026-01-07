@@ -9,24 +9,16 @@ If the automatic deployment from `render.yaml` doesn't work, use these **exact s
 | Setting | Value |
 |---------|-------|
 | **Name** | `luna-book` |
-| **Environment** | `Python 3` |
+| **Environment** | `Docker` |
 | **Region** | Choose closest to you |
 | **Branch** | `main` |
-| **Build Command** | `pip install -r requirements.txt` |
-| **Start Command** | `uvicorn backend:app --host 0.0.0.0 --port $PORT` |
 
-### Critical: Start Command
+### Deployment via Docker
 
-**DO NOT** let Render auto-detect the start command. It will try to use `gunicorn` which is for Django/WSGI apps.
-
-**You MUST manually enter:**
-```bash
-uvicorn backend:app --host 0.0.0.0 --port $PORT
-```
-
-### Environment Variables
-
-No environment variables are required. Render automatically provides `$PORT`.
+Render will automatically detect the `Dockerfile` in the root of your repository. This Dockerfile handles:
+1.  **Frontend Build**: Compiling the React app into static files.
+2.  **Backend Setup**: Installing Python 3.11 and the scientific stack.
+3.  **Monolithic Run**: Serving both through FastAPI.
 
 ### Health Check
 
