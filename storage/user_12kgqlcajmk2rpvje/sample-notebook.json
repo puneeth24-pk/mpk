@@ -1,0 +1,46 @@
+{
+  "id": "sample-notebook",
+  "cells": [
+    {
+      "code": "# Welcome to Luna Book 🌙📘\n# PADU LECHI NILABADU - Rise and Stand Tall!\n\nprint(\"Welcome to Luna Book!\")\nprint(\"This notebook demonstrates all features:\")\nprint(\"✅ Real Python execution\")\nprint(\"✅ NumPy, Pandas, Matplotlib\")\nprint(\"✅ Machine Learning with scikit-learn\")\nprint(\"✅ Interactive input()\")\nprint(\"✅ Variable persistence\")\nprint(\"✅ Error handling\")",
+      "output": ""
+    },
+    {
+      "code": "# NumPy Operations\nimport numpy as np\n\n# Create arrays\narr1 = np.array([1, 2, 3, 4, 5])\narr2 = np.array([10, 20, 30, 40, 50])\n\nprint(f\"Array 1: {arr1}\")\nprint(f\"Array 2: {arr2}\")\nprint(f\"Sum: {arr1 + arr2}\")\nprint(f\"Mean of arr1: {np.mean(arr1)}\")\nprint(f\"Standard deviation: {np.std(arr1)}\")",
+      "output": ""
+    },
+    {
+      "code": "# Pandas DataFrames\nimport pandas as pd\n\n# Create sample data\ndata = {\n    'Name': ['Alice', 'Bob', 'Charlie', 'Diana', 'Eve'],\n    'Age': [25, 30, 35, 28, 32],\n    'City': ['New York', 'London', 'Tokyo', 'Paris', 'Sydney'],\n    'Salary': [50000, 60000, 70000, 55000, 65000]\n}\n\ndf = pd.DataFrame(data)\nprint(\"Sample DataFrame:\")\nprint(df)\nprint(f\"\\nAverage age: {df['Age'].mean()}\")\nprint(f\"Average salary: ${df['Salary'].mean():,.2f}\")",
+      "output": ""
+    },
+    {
+      "code": "# Matplotlib Plotting\nimport matplotlib.pyplot as plt\nimport numpy as np\n\n# Generate data\nx = np.linspace(0, 2*np.pi, 100)\ny1 = np.sin(x)\ny2 = np.cos(x)\n\n# Create plot\nplt.figure(figsize=(10, 6))\nplt.plot(x, y1, 'b-', label='sin(x)', linewidth=2)\nplt.plot(x, y2, 'r--', label='cos(x)', linewidth=2)\nplt.title('Trigonometric Functions', fontsize=16)\nplt.xlabel('X (radians)', fontsize=12)\nplt.ylabel('Y', fontsize=12)\nplt.legend()\nplt.grid(True, alpha=0.3)\nplt.show()",
+      "output": ""
+    },
+    {
+      "code": "# Machine Learning with Scikit-learn\nfrom sklearn.linear_model import LinearRegression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import r2_score\nimport numpy as np\nimport matplotlib.pyplot as plt\n\n# Generate sample data\nnp.random.seed(42)\nX = np.random.randn(100, 1) * 10\ny = 2.5 * X.flatten() + 1.5 + np.random.randn(100) * 2\n\n# Split data\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\n# Train model\nmodel = LinearRegression()\nmodel.fit(X_train, y_train)\n\n# Make predictions\ny_pred = model.predict(X_test)\n\n# Results\nprint(f\"Model coefficient: {model.coef_[0]:.2f}\")\nprint(f\"Model intercept: {model.intercept_:.2f}\")\nprint(f\"R² Score: {r2_score(y_test, y_pred):.3f}\")\n\n# Plot results\nplt.figure(figsize=(10, 6))\nplt.scatter(X_test, y_test, alpha=0.6, label='Actual')\nplt.plot(X_test, y_pred, 'r-', linewidth=2, label='Predicted')\nplt.xlabel('X')\nplt.ylabel('Y')\nplt.title('Linear Regression Results')\nplt.legend()\nplt.grid(True, alpha=0.3)\nplt.show()",
+      "output": ""
+    },
+    {
+      "code": "# Interactive Input Example\n# Uncomment the lines below to test interactive input\n\n# name = input(\"What's your name? \")\n# age = int(input(\"How old are you? \"))\n# favorite_color = input(\"What's your favorite color? \")\n\n# print(f\"\\nHello {name}!\")\n# print(f\"You are {age} years old.\")\n# print(f\"Your favorite color is {favorite_color}.\")\n\nprint(\"Interactive input example ready!\")\nprint(\"Uncomment the lines above to test input() function.\")",
+      "output": ""
+    },
+    {
+      "code": "# Variable Persistence Test\n# Variables from previous cells are still available\n\nprint(\"Testing variable persistence:\")\nprint(f\"arr1 from NumPy cell: {arr1}\")\nprint(f\"df shape from Pandas cell: {df.shape}\")\nprint(f\"Model coefficient: {model.coef_[0]:.2f}\")\n\n# Create new variables\nmy_variable = \"This persists across cells!\"\nprint(f\"New variable: {my_variable}\")",
+      "output": ""
+    },
+    {
+      "code": "# Error Handling Example\nprint(\"Testing error handling:\")\n\ntry:\n    # This will cause a division by zero error\n    result = 10 / 0\nexcept ZeroDivisionError as e:\n    print(f\"Caught error: {e}\")\n\n# This will show a real Python error in the output\n# undefined_variable",
+      "output": ""
+    },
+    {
+      "code": "# Advanced Plotting Example\nimport matplotlib.pyplot as plt\nimport numpy as np\n\n# Create subplots\nfig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 10))\n\n# Plot 1: Line plot\nx = np.linspace(0, 10, 100)\nax1.plot(x, np.sin(x), 'b-')\nax1.set_title('Sine Wave')\nax1.grid(True)\n\n# Plot 2: Scatter plot\nnp.random.seed(42)\nx2 = np.random.randn(50)\ny2 = np.random.randn(50)\nax2.scatter(x2, y2, alpha=0.6, c='red')\nax2.set_title('Random Scatter')\nax2.grid(True)\n\n# Plot 3: Histogram\ndata = np.random.normal(0, 1, 1000)\nax3.hist(data, bins=30, alpha=0.7, color='green')\nax3.set_title('Normal Distribution')\nax3.grid(True)\n\n# Plot 4: Bar plot\ncategories = ['A', 'B', 'C', 'D']\nvalues = [23, 45, 56, 78]\nax4.bar(categories, values, color='purple')\nax4.set_title('Bar Chart')\nax4.grid(True)\n\nplt.tight_layout()\nplt.show()",
+      "output": ""
+    },
+    {
+      "code": "# Final Summary\nprint(\"🌙📘 Luna Book Feature Summary:\")\nprint(\"=\"*40)\nprint(\"✅ Real Python execution with all libraries\")\nprint(\"✅ Beautiful plots with Matplotlib\")\nprint(\"✅ Data analysis with NumPy and Pandas\")\nprint(\"✅ Machine Learning with Scikit-learn\")\nprint(\"✅ Interactive input() support\")\nprint(\"✅ Variable persistence across cells\")\nprint(\"✅ Professional error handling\")\nprint(\"✅ Auto-save and export functionality\")\nprint(\"✅ Share and collaboration features\")\nprint(\"✅ Premium glassmorphism UI\")\nprint(\"=\"*40)\nprint(\"PADU LECHI NILABADU - Rise and Stand Tall!\")\nprint(\"Your learning journey starts here! 🚀\")",
+      "output": ""
+    }
+  ],
+  "timestamp": "2024-01-01T00:00:00.000Z"
+}

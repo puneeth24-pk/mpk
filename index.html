@@ -2,133 +2,36 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Luna Book</title>
-    <link rel="stylesheet" href="styles.css?v=1.1">
+
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#6c5ce7" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Luna Book" />
+    <meta name="description" content="Advanced Offline-Capable Python Notebook Environment" />
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Icons -->
+    <link rel="apple-touch-icon" href="/pwa-192x192.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/pwa-512x512.png" />
+
+    <!-- Fonts -->
+    <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+
+    <!-- Monaco Editor -->
     <script src="https://unpkg.com/monaco-editor@0.44.0/min/vs/loader.js"></script>
 </head>
 
 <body>
-    <!-- Loading Page -->
-    <div id="loading-page" class="loading-page">
-        <div class="loading-content">
-            <h1 class="app-title">Luna Book</h1>
-            <h2 class="tagline">PADU LECHI NILABADU</h2>
-            <p class="sub-text">Loading your learning journey...</p>
-            <div class="loader"></div>
-        </div>
-    </div>
-
-    <!-- Home Page (Community & Footer) -->
-    <div id="home-page" class="home-page hidden">
-        <div class="home-content">
-            <h1 class="app-title-small">Luna Book</h1>
-            <h2 class="tagline-small">PADU LECHI NILABADU</h2>
-
-            <div class="home-actions">
-                <button id="start-coding-btn" class="btn btn-primary btn-large">Start Coding</button>
-            </div>
-
-            <!-- Community Card -->
-            <div class="community-card">
-                <h3>Join our Community</h3>
-                <p>Connect with other learners and developers.</p>
-                <a href="https://chat.whatsapp.com/G5iSjrnLoiR0oKC2jS0uVv" target="_blank" class="btn btn-whatsapp">Join
-                    Luna Book Community on WhatsApp</a>
-            </div>
-        </div>
-
-        <!-- Footer -->
-        <footer class="footer">
-            <div class="footer-content">
-                <div class="footer-section">
-                    <h4>M Puneeth Kumar</h4>
-                    <p>Email: <a href="mailto:mandlapuneethkumar2005@gmail.com">mandlapuneethkumar2005@gmail.com</a></p>
-                    <p>LinkedIn: <a href="https://www.linkedin.com/in/puneeth-kumar-mandla-a03525326"
-                            target="_blank">Puneeth Kumar Mandla</a></p>
-                </div>
-                <div class="footer-section">
-                    <h4>Support & Contribution</h4>
-                    <p>Support Phone: 9391098736</p>
-                    <p>PhonePe Contribution: 9391098736</p>
-                </div>
-                <div class="footer-section">
-                    <p>&copy; 2026 Luna Book</p>
-                    <p>PADU LECHI NILABADU</p>
-                </div>
-            </div>
-        </footer>
-    </div>
-
-    <!-- Notebook Page (Execution Only) -->
-    <div id="notebook-page" class="main-page hidden">
-        <!-- Header -->
-        <header class="header">
-            <div class="header-left">
-                <button id="back-home-btn" class="btn btn-secondary" title="Back to Home">← Home</button>
-                <h1>Luna Book</h1>
-                <span class="status" id="status">Ready</span>
-            </div>
-            <div class="header-right">
-                <input type="file" id="file-upload" hidden>
-                <button id="new-notebook-btn" class="btn btn-secondary" title="New Notebook (Ctrl+N)">📄 New</button>
-                <button id="upload-btn" class="btn btn-secondary">Upload Data</button>
-                <button id="open-btn" class="btn btn-secondary">Open</button>
-                <button id="run-all-btn" class="btn btn-primary">Run all</button>
-                <button id="clear-all-btn" class="btn btn-secondary">Clear outputs</button>
-                <button id="restart-btn" class="btn btn-secondary">Restart runtime</button>
-                <button id="save-btn" class="btn btn-accent">Save</button>
-                <button id="export-btn" class="btn btn-accent">Export</button>
-                <button id="share-btn" class="btn btn-accent">Share</button>
-            </div>
-        </header>
-
-        <!-- Notebook Container -->
-        <div class="notebook-container">
-            <div id="cells-container" class="cells-container">
-                <!-- Cells will be added dynamically -->
-            </div>
-            <button id="add-cell-btn" class="add-cell-btn">+ Code</button>
-        </div>
-    </div>
-
-    <!-- Export Modal -->
-    <div id="export-modal" class="modal hidden">
-        <div class="modal-content">
-            <h3>Export Notebook</h3>
-            <div class="export-options">
-                <button class="btn btn-primary export-btn" data-format="json">Save as JSON</button>
-                <button class="btn btn-primary export-btn" data-format="ipynb">Save as Jupyter (.ipynb)</button>
-                <button class="btn btn-primary export-btn" data-format="py">Save as Python (.py)</button>
-                <button class="btn btn-primary export-btn" data-format="html">Save as HTML</button>
-                <button class="btn btn-primary export-btn" data-format="pdf">Save as PDF</button>
-            </div>
-            <button id="close-export" class="btn btn-secondary">Close</button>
-        </div>
-    </div>
-
-    <!-- Share Modal -->
-    <div id="share-modal" class="modal hidden">
-        <div class="modal-content">
-            <h3>Share Notebook</h3>
-            <div class="share-options">
-                <label>
-                    <input type="radio" name="share-mode" value="view" checked> View Only
-                </label>
-                <label>
-                    <input type="radio" name="share-mode" value="edit"> Edit Access
-                </label>
-            </div>
-            <div class="share-link-container">
-                <input type="text" id="share-link" class="share-link" readonly>
-                <button id="copy-link" class="btn btn-primary">Copy Link</button>
-            </div>
-            <button id="close-share" class="btn btn-secondary">Close</button>
-        </div>
-    </div>
-
-    <script src="app.js"></script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
 </body>
 
 </html>

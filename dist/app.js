@@ -3,81 +3,209 @@ class LunaBook {
         this.cells = [];
         this.cellCounter = 0;
         this.ws = null;
-        this.executingCells = new Set(); // Track which cells are currently executing
-        this.kernelBusy = false; // Track if kernel is processing
-        this.cellCompletionCallbacks = {}; // Callbacks for when cells complete
+        this.worker = null; // Python Worker for offline mode
+        this.mode = navigator.onLine ? 'online' : 'offline'; // 'online' or 'offline'
+        this.userId = this.getOrCreateUserId();
+        this.executingCells = new Set();
+        this.kernelBusy = false;
+        this.cellCompletionCallbacks = {};
+        console.log("Luna Book v2.0 Loaded");
         this.init();
     }
 
+    getOrCreateUserId() {
+        let id = localStorage.getItem('luna_user_id');
+        if (!id) {
+            id = 'user_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+            localStorage.setItem('luna_user_id', id);
+        }
+        return id;
+    }
+
     async init() {
+        // PWA Install Prompt Logic
+        this.deferredPrompt = null;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            this.deferredPrompt = e;
+            console.log("Captured beforeinstallprompt event");
+            this.setupInstallBtn();
+        });
+
+        // Initialize Worker for offline capability immediately
+        this.initWorker();
+
+        // Listen for network status changes
+        window.addEventListener('online', () => this.setMode('online'));
+        window.addEventListener('offline', () => this.setMode('offline'));
+
+        // Start with Loading Page
+        this.showLoadingPage();
+
         setTimeout(() => {
-            document.getElementById('loading-page').classList.add('hidden');
-            document.getElementById('home-page').classList.remove('hidden');
-            this.connectWebSocket();
+            // Transition to Home Page
+            this.showHome();
+
+            // Try connecting to backend
+            this.connectBackend();
+
             this.setupEventListeners();
             this.addCell();
+            this.updateStatusIndicator();
         }, 2000);
     }
 
+    setupInstallBtn() {
+        const installBtn = document.getElementById('install-app-btn');
+        if (installBtn && this.deferredPrompt) {
+            console.log("Setting up Install Button");
+            installBtn.style.display = 'inline-block';
+            installBtn.classList.remove('hidden');
+
+            // Remove old listeners to avoid duplicates if called multiple times
+            const newBtn = installBtn.cloneNode(true);
+            installBtn.parentNode.replaceChild(newBtn, installBtn);
+
+            newBtn.addEventListener('click', () => {
+                this.deferredPrompt.prompt();
+                this.deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('User accepted the install prompt');
+                    }
+                    this.deferredPrompt = null;
+                    newBtn.style.display = 'none';
+                });
+            });
+        }
+    }
+
+    initWorker() {
+        if (!window.Worker) {
+            console.error("Web Workers not supported");
+            return;
+        }
+        console.log("Initializing Offline Worker...");
+        this.worker = new Worker('worker.js');
+        this.worker.onmessage = (e) => this.handleExecutionMessage(e.data);
+
+        // Listen for service worker messages if we add progress tracking
+    }
+
+    setMode(newMode) {
+        this.mode = newMode;
+        console.log(`Switched to ${this.mode} mode`);
+        this.updateStatusIndicator();
+        if (newMode === 'online') this.connectBackend();
+    }
+
+    updateStatusIndicator() {
+        const statusEl = document.getElementById('status');
+        if (this.mode === 'offline') {
+            statusEl.textContent = 'Offline (Pyodide)';
+            statusEl.style.color = 'orange';
+        } else if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            statusEl.textContent = 'Connected (Server)';
+            statusEl.style.color = '#00ff00';
+        } else {
+            statusEl.textContent = 'Connecting...';
+            statusEl.style.color = 'yellow';
+        }
+    }
+
+    showLoadingPage() {
+        document.getElementById('loading-page').classList.remove('hidden');
+        document.getElementById('home-page').classList.add('hidden');
+        document.getElementById('notebook-page').classList.add('hidden');
+        document.getElementById('global-footer').classList.remove('hidden'); // Footer allowed
+    }
+
+    showHome() {
+        document.getElementById('loading-page').classList.add('hidden');
+        document.getElementById('home-page').classList.remove('hidden');
+        document.getElementById('notebook-page').classList.add('hidden');
+        document.getElementById('global-footer').classList.remove('hidden'); // Footer allowed
+
+        // Clear notebook when going back to home
+        this.clearNotebook();
+    }
+
     showNotebook() {
+        document.getElementById('loading-page').classList.add('hidden');
         document.getElementById('home-page').classList.add('hidden');
         document.getElementById('notebook-page').classList.remove('hidden');
+        document.getElementById('global-footer').classList.add('hidden'); // Footer FORBIDDEN on Execution Page
 
-        // Reset to fresh notebook when coming from home page
+        // Reset to fresh notebook when starting
         if (this.cells.length === 0) {
             this.addCell();
         }
 
-        // Refresh Monaco editors as they don't render correctly when initialized hidden
+        // Refresh Monaco editors
         setTimeout(() => this.refreshEditors(), 50);
     }
 
-    showHome() {
-        document.getElementById('notebook-page').classList.add('hidden');
-        document.getElementById('home-page').classList.remove('hidden');
+    connectBackend() {
+        if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) return;
 
-        // Clear notebook when going back to home (fresh start next time)
-        this.clearNotebook();
-    }
+        // Strategy: Try Proxy First (/ws), if fail, try Direct (8015)
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = window.location.host;
 
-    refreshEditors() {
-        this.cells.forEach(cell => {
-            if (cell.editor) {
-                cell.editor.layout();
+        // 1. Proxy URL (Standard for Prod/Dev with Proxy)
+        const proxyUrl = `${protocol}//${host}/ws?userId=${this.userId}`;
+
+        // 2. Direct URL (Fallback for Localhost if proxy fails)
+        // Use 127.0.0.1 to avoid IPv6 localhost issues
+        const directUrl = `ws://127.0.0.1:8020/ws?userId=${this.userId}`;
+
+        console.log(`Attempting connection to Backend...`);
+
+        const connect = (url, isRetry = false) => {
+            console.log(`Connecting to: ${url}`);
+            try {
+                const socket = new WebSocket(url);
+
+                socket.onopen = () => {
+                    console.log(`Connected to Backend via ${url}`);
+                    this.ws = socket;
+                    this.setMode('online');
+                };
+
+                socket.onclose = () => {
+                    console.warn(`Disconnected from ${url}`);
+                    // Retry fallback if on local machine
+                    const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
+                    if (!isRetry && url !== directUrl && isLocal) {
+                        console.log("Proxy connection failed, trying direct connection...");
+                        connect(directUrl, true);
+                    } else {
+                        console.log("Connection failed, switching to Offline mode");
+                        this.setMode('offline');
+                        if (navigator.onLine) {
+                            setTimeout(() => this.connectBackend(), 5000); // Retry loop
+                        }
+                    }
+                };
+
+                socket.onerror = (e) => {
+                    console.log("WebSocket error", e);
+                };
+
+                socket.onmessage = (event) => {
+                    const msg = JSON.parse(event.data);
+                    this.handleExecutionMessage(msg);
+                };
+            } catch (e) {
+                console.log("Connection exception", e);
+                if (!isRetry && url !== directUrl) connect(directUrl, true);
             }
-        });
+        };
+
+        connect(proxyUrl);
     }
 
-    connectWebSocket() {
-        let wsUrl;
-        if (window.location.protocol === 'file:') {
-            wsUrl = 'ws://localhost:8009/ws';
-        } else {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            wsUrl = `${protocol}//${window.location.host}/ws`;
-        }
-
-        this.ws = new WebSocket(wsUrl);
-
-        this.ws.onopen = () => {
-            document.getElementById('status').textContent = 'Connected';
-            document.getElementById('status').style.color = '#00ff00';
-        };
-
-        this.ws.onclose = () => {
-            document.getElementById('status').textContent = 'Disconnected';
-            document.getElementById('status').style.color = 'red';
-            setTimeout(() => this.connectWebSocket(), 3000);
-        };
-
-        this.ws.onmessage = (event) => {
-            const msg = JSON.parse(event.data);
-            console.log("WebSocket Message Received:", msg);
-            this.handleWebSocketMessage(msg);
-        };
-    }
-
-    handleWebSocketMessage(msg) {
+    handleExecutionMessage(msg) {
         const cellId = msg.cellId;
         const outputElement = document.getElementById(`output-${cellId}`);
         const cell = this.cells.find(c => c.id === cellId);
@@ -152,11 +280,14 @@ class LunaBook {
 
         } else if (msg.type === 'complete') {
             const cellElement = document.getElementById(cellId);
-            cellElement.classList.remove('executing');
-            // Remove spinner
-            const spinner = cellElement.querySelector('.cell-spinner');
-            if (spinner) spinner.style.display = 'none';
-            outputElement.classList.add('success');
+            if (cellElement) {
+                cellElement.classList.remove('executing');
+                this.updateCellRunningState(cellId, false);
+            }
+            // Remove spinner - handled by updateCellRunningState
+            // const spinner = cellElement.querySelector('.cell-spinner');
+            // if (spinner) spinner.style.display = 'none';
+            if (outputElement) outputElement.classList.add('success');
 
             // Clear execution state
             this.executingCells.delete(cellId);
@@ -175,52 +306,60 @@ class LunaBook {
             this.executingCells.clear();
             this.kernelBusy = false;
             this.cellCompletionCallbacks = {};
+
+        } else if (msg.type === 'status') {
+            if (msg.status === 'ready') {
+                console.log("Offline Engine Ready");
+                if (this.mode === 'offline') {
+                    const indicator = document.getElementById('status-indicator');
+                    if (indicator) {
+                        indicator.textContent = 'Offline Ready';
+                        indicator.className = 'status-indicator online'; // Use green for ready
+                    }
+                }
+            } else if (msg.status === 'error') {
+                console.error("Offline Engine Failed:", msg.error);
+                alert("Offline Engine failed to load: " + msg.error);
+            }
         }
     }
 
     parseAnsi(text) {
         // Basic ANSI parser for Jupyter tracebacks
-        // 0: reset, 1: bold, 30-37: fg colors, 40-47: bg colors
-        // This is a naive implementation but sufficient for basic tracebacks
         if (!text) return '';
 
-        // Escape HTML first to prevent XSS from code content
+        // Escape HTML
         text = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-        // Define color map
+        // 1. Handle basic colors (30-37, 90-97)
+        // 2. Handle simple styles (1: bold)
+        // 3. Strip complex 256-colors (38;5;xx) for now to keep it clean/fast
+        //    or valid CSS classes. simple stripping is safest for "slow/garbage" complaint.
+
+        // Strip 38;5;xx (256 colors) and 48;5;xx (bg)
+        text = text.replace(/\u001b\[(38|48);5;\d+m/g, '');
+
+        // Basic Color Map
         const colors = {
             30: 'black', 31: '#d73a49', 32: '#28a745', 33: '#d7ba7d',
-            34: '#0366d6', 35: '#d32992', 36: '#0598bc', 37: 'white'
+            34: '#0366d6', 35: '#d32992', 36: '#0598bc', 37: '#e0e0e0',
+            90: '#6a737d', 91: '#f97583', 92: '#85e89d', 93: '#ffea7f',
+            94: '#79b8ff', 95: '#b392f0', 96: '#9ecbff', 97: '#ffffff'
         };
 
-        // Stack to keep track of current styles
-        // But for regex replacement, we can just replace known codes with span tags
-        // Reset (0/39/49) closes all spans? No, usually just resets color.
-        // Simplification: Replace start code with span class/style, end code with </span>
-        // Note: Jupyter tracebacks are well-behaved usually.
+        // Replace known codes
+        text = text.replace(/\u001b\[(\d{1,2})m/g, (match, code) => {
+            code = parseInt(code);
+            if (code === 0 || code === 39 || code === 49) return '</span>';
+            if (code === 1) return '<span style="font-weight:bold">';
+            if (colors[code]) return `<span style="color:${colors[code]}">`;
+            return ''; // Strip unknown 1-2 digit codes
+        });
 
-        // Replace color codes
-        // \u001b[31m -> <span style="color:red">
-        // \u001b[0m -> </span> (simplified)
-        // \u001b[39m -> </span> (reset fg)
+        // Strip any remaining ANSI escape sequences
+        text = text.replace(/\u001b\[.*?m/g, '');
 
-        // We'll process iteratively or use robust regex
-
-        let html = text
-            .replace(/\u001b\[0?m/g, '</span>') // simplistic reset
-            .replace(/\u001b\[1m/g, '<span style="font-weight:bold">')
-            .replace(/\u001b\[31m/g, '<span style="color:#ff6b6b">') // Red
-            .replace(/\u001b\[32m/g, '<span style="color:#28a745">') // Green
-            .replace(/\u001b\[33m/g, '<span style="color:#d7ba7d">') // Yellow
-            .replace(/\u001b\[34m/g, '<span style="color:#0366d6">') // Blue
-            .replace(/\u001b\[35m/g, '<span style="color:#d32992">') // Magenta
-            .replace(/\u001b\[36m/g, '<span style="color:#0598bc">') // Cyan
-            .replace(/\u001b\[37m/g, '<span style="color:#e0e0e0">') // White
-            .replace(/\u001b\[39m/g, '</span>') // Default fg reset
-            .replace(/\u001b\[\d+;?\d*m/g, ''); // Strip any other unhandled ansi codes
-
-        // Clean up any unbalanced spans if necessary, or browser will handle it
-        return html;
+        return text;
     }
 
     showInputPrompt(cellId, promptText) {
@@ -251,10 +390,23 @@ class LunaBook {
         const submitInput = () => {
             const value = input.value;
             console.log("Sending input reply:", value);
-            this.ws.send(JSON.stringify({
-                type: 'input_reply',
-                value: value
-            }));
+
+            if (this.mode === 'online' && this.ws) {
+                this.ws.send(JSON.stringify({
+                    type: 'input_reply',
+                    value: value
+                }));
+            } else {
+                // Offline input handling (simulated via prompt usually, but here via message?)
+                // Pyodide worker doesn't support async input easily without SharedArrayBuffer.
+                // IF we used SharedArrayBuffer, we'd write to it.
+                // For now, let's assume we can't easily do it in worker unless we use PROMPT.
+                // Actually, Pyodide 0.23+ has 'setStdin' that can be a function. 
+                // But we are in a worker. 
+                // Simple hack: We probably won't get 'input_request' from Worker unless we implemented it specially.
+                alert("Input not fully supported in Offline Mode yet.");
+            }
+
             div.remove();
 
             // Show what was entered
@@ -584,24 +736,44 @@ class LunaBook {
         cellElement.className = 'cell';
         cellElement.id = cell.id;
 
+        // Split Layout Structure: Gutter | Editor | Output
         cellElement.innerHTML = `
-            <div class="cell-header">
-                <div class="cell-left">
-                    <span class="cell-number">In [${this.cells.length}]:</span>
-                    <div class="cell-spinner"></div>
+            <div class="cell-gutter">
+                <button class="play-btn" id="play-${cell.id}" onclick="lunaBook.runCell('${cell.id}')" title="Run Cell">▶</button>
+            </div>
+            
+            <div class="cell-split-layout">
+                <div class="cell-editor-pane">
+                     <div class="pane-header">Code</div>
+                     <div class="editor-container" id="editor-${cell.id}"></div>
                 </div>
-                <div class="cell-controls">
-                    <button class="btn cell-btn btn-primary" onclick="lunaBook.runCell('${cell.id}')">▶ Run</button>
-                    <button class="btn cell-btn btn-secondary" onclick="lunaBook.clearCellOutput('${cell.id}')">Clear</button>
-                    <button class="btn cell-btn btn-secondary" onclick="lunaBook.deleteCell('${cell.id}')">Delete</button>
+                <div class="cell-output-pane">
+                     <div class="pane-header">Output</div>
+                     <div class="output-container" id="output-${cell.id}">${cell.output}</div>
                 </div>
             </div>
-            <div class="editor-container" id="editor-${cell.id}"></div>
-            <div class="output-container" id="output-${cell.id}">${cell.output}</div>
+            
+            <div class="cell-controls-overlay">
+                <button class="icon-btn" onclick="lunaBook.deleteCell('${cell.id}')" title="Delete">🗑️</button>
+                <button class="icon-btn" onclick="lunaBook.clearCellOutput('${cell.id}')" title="Clear Output">🚫</button>
+            </div>
         `;
 
         document.getElementById('cells-container').appendChild(cellElement);
         this.initializeEditor(cell);
+    }
+
+    // Also need to handle "running" state on the play button specifically now
+    updateCellRunningState(cellId, isRunning) {
+        const btn = document.getElementById(`play-${cellId}`);
+        if (!btn) return;
+        if (isRunning) {
+            btn.classList.add('running');
+            btn.textContent = ''; // Spinner logic in CSS
+        } else {
+            btn.classList.remove('running');
+            btn.textContent = '▶';
+        }
     }
 
     initializeEditor(cell) {
@@ -611,10 +783,19 @@ class LunaBook {
             const editor = monaco.editor.create(document.getElementById(`editor-${cell.id}`), {
                 value: cell.code,
                 language: 'python',
-                theme: 'vs-dark',
+                theme: 'vs-dark', // Dark editor
                 minimap: { enabled: false },
-                fontSize: 14,
-                automaticLayout: true
+                fontSize: 16, // Requested 16px
+                fontFamily: "'JetBrains Mono', 'Fira Code', 'Roboto Mono', monospace", // Requested Fonts
+                automaticLayout: true,
+                scrollBeyondLastLine: false,
+                lineNumbers: 'on',
+                lineNumbersMinChars: 2,
+                folding: false,
+                padding: { top: 16, bottom: 16 },
+                renderLineHighlight: 'line',
+                smoothScrolling: true,
+                cursorBlinking: 'smooth'
             });
 
             cell.editor = editor;
@@ -622,7 +803,21 @@ class LunaBook {
             editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
                 this.runCell(cell.id);
             });
+
+            // Auto-resize height based on content
+            editor.onDidChangeModelContent(() => {
+                this.updateEditorHeight(cell.id, editor);
+            });
+            this.updateEditorHeight(cell.id, editor);
         });
+    }
+
+    updateEditorHeight(cellId, editor) {
+        const lineCount = editor.getModel().getLineCount();
+        const lineHeight = 21; // Approx for 16px font
+        const height = Math.min(Math.max(lineCount * lineHeight + 32, 100), 800);
+        document.getElementById(`editor-${cellId}`).style.height = `${height}px`;
+        editor.layout();
     }
 
     async runCell(cellId) {
@@ -644,27 +839,35 @@ class LunaBook {
         this.executingCells.add(cellId);
         this.kernelBusy = true;
 
-        // Show spinner
-        const spinner = cellElement.querySelector('.cell-spinner');
-        if (spinner) spinner.style.display = 'block';
+        this.updateCellRunningState(cellId, true); // Visual update logic
 
         outputElement.innerHTML = '';
         cell.output = '';
 
         const code = cell.editor ? cell.editor.getValue() : cell.code;
 
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        if (this.mode === 'online' && this.ws && this.ws.readyState === WebSocket.OPEN) {
+            console.log("Executing via Backend");
             this.ws.send(JSON.stringify({
                 type: 'execute',
                 code: code,
                 cellId: cellId
             }));
         } else {
-            outputElement.innerHTML = 'Error: Backend not connected';
-            cellElement.classList.remove('executing');
-            this.executingCells.delete(cellId);
-            this.kernelBusy = false;
-            if (spinner) spinner.style.display = 'none';
+            console.log("Executing via Offline Worker");
+            if (this.worker) {
+                this.worker.postMessage({
+                    type: 'execute',
+                    code: code,
+                    cellId: cellId
+                });
+            } else {
+                outputElement.innerHTML = 'Error: Offline engine not ready.';
+                cellElement.classList.remove('executing');
+                this.executingCells.delete(cellId);
+                this.kernelBusy = false;
+                if (spinner) spinner.style.display = 'none';
+            }
         }
     }
 
@@ -754,11 +957,14 @@ class LunaBook {
         // Clear all outputs
         this.clearAllOutputs();
 
-        // Send restart command to backend
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        // Send restart command
+        if (this.mode === 'online' && this.ws && this.ws.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify({ type: 'restart' }));
         } else {
-            alert("Backend not connected, cannot restart.");
+            // Offline restart = terminate and recreate worker
+            if (this.worker) this.worker.terminate();
+            this.initWorker();
+            alert("Offline Runtime Restarted");
         }
     }
 
@@ -821,7 +1027,12 @@ class LunaBook {
     }
 }
 
-let lunaBook;
-document.addEventListener('DOMContentLoaded', () => {
-    lunaBook = new LunaBook();
-});
+
+// Expose to window for React Wrapper
+window.LunaBook = LunaBook;
+
+// Removed auto-init listener to allow Manual Init by React
+// let lunaBook;
+// document.addEventListener('DOMContentLoaded', () => {
+//     lunaBook = new LunaBook();
+// });

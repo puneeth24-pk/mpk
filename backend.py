@@ -1,5 +1,6 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File
 from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import jupyter_client
 from jupyter_client import AsyncKernelManager
@@ -10,6 +11,9 @@ import asyncio
 import uuid
 import logging
 import queue
+import tempfile
+import shutil
+import glob
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -37,14 +41,47 @@ class KernelSession:
         self.km = None
         self.kc = None
         self.started = False
-        self.current_execution = None  # Track current executing cell_id
-        self.is_executing = False  # Flag to track if kernel is busy
+        self.current_execution = None
+        self.is_executing = False
+        self.temp_dir = None  # Dedicated storage for this session
+        self.user_dir = None
 
-    async def start(self):
-        logger.info(f"Starting kernel for session {self.session_id}")
+    async def start(self, user_id: str):
+        logger.info(f"Starting kernel for session {self.session_id} user {user_id}")
+        
+        # PERSISTENCE: Use consistent directory for the user
+        base_storage = os.path.join(WORKING_DIR, "storage")
+        os.makedirs(base_storage, exist_ok=True)
+        
+        self.user_dir = os.path.join(base_storage, user_id)
+        
+        if not os.path.exists(self.user_dir):
+            os.makedirs(self.user_dir)
+            logger.info(f"Created new persistent workspace for user {user_id}")
+            
+            # Initialize with default data files using HARD LINKS (fast, low space)
+            try:
+                for ext in ['*.csv', '*.xlsx', '*.json', '*.txt', '*.png', '*.jpg']:
+                    for file_path in glob.glob(os.path.join(WORKING_DIR, ext)):
+                        filename = os.path.basename(file_path)
+                        dest_path = os.path.join(self.user_dir, filename)
+                        if not os.path.exists(dest_path):
+                            try:
+                                os.link(file_path, dest_path)
+                            except OSError:
+                                # Fallback to copy if hard links fail (different drive etc)
+                                shutil.copy(file_path, dest_path)
+            except Exception as e:
+                logger.warning(f"Failed to populate user workspace: {e}")
+        else:
+            logger.info(f"Resuming existing workspace for user {user_id}")
+            
+        self.temp_dir = self.user_dir # logical alias for backwards compat in class
+
+
         self.km = AsyncKernelManager(kernel_name='python3')
-        # Use valid start_kernel_async
-        await self.km.start_kernel(cwd=WORKING_DIR)
+        # Use isolated directory as CWD
+        await self.km.start_kernel(cwd=self.temp_dir)
         self.kc = self.km.client()
         self.kc.start_channels()
         
@@ -54,16 +91,21 @@ class KernelSession:
             logger.info(f"Kernel ready for session {self.session_id}")
             
             # Run startup code silently
-            startup_code = """
+            # Add main directory to path so they can import modules if needed
+            # Also ensure we are in the user dir
+            startup_code = f"""
+import sys
+import os
+sys.path.append(r"{WORKING_DIR}")
+os.chdir(r"{self.user_dir}")
 import matplotlib
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 %matplotlib inline
 """
-            # We fire and forget startup code, or wait for it? 
-            # Better to wait to ensure environment is ready.
-            await self.execute_silent(startup_code)
+            await self.execute_silent(startup_code) # Wait for idle
+
             
         except Exception as e:
             logger.error(f"Failed to start kernel: {e}")
@@ -168,8 +210,9 @@ import numpy as np
                     except Exception as e:
                         logger.error(f"Error checking stdin: {e}")
                     
-                    # Reduced sleep time for faster response (10x improvement)
-                    await asyncio.sleep(0.001)  # 1ms instead of 10ms
+                    # PERFORMANCE FIX: Increased sleep time to reduce CPU usage
+                    # 1ms is too aggressive for 10+ users. 10ms (0.01) is sufficient/smooth.
+                    await asyncio.sleep(0.01)
 
                 except Exception as e:
                     logger.error(f"Error during execution: {e}")
@@ -190,10 +233,18 @@ import numpy as np
     async def shutdown(self):
         if self.km:
             logger.info(f"Shutting down kernel for session {self.session_id}")
-            await self.km.shutdown_kernel()
+            try:
+                await self.km.shutdown_kernel()
+            except Exception as e:
+                logger.warning(f"Error shutting down kernel: {e}")
             self.started = False
             self.km = None
             self.kc = None
+            
+            # DO NOT DELETE persistent user storage
+            # But we might want to clean up if it was a temp/guest user?
+            # For now, keep it for persistence.
+
 
     async def _wait_for_idle(self, msg_id):
         # Helper to wait for a specific message to be done without sending anything to WS
@@ -248,15 +299,32 @@ async def shutdown_event():
     for session in sessions.values():
         await session.shutdown()
 
+app.mount("/assets", StaticFiles(directory="dist/assets"), name="assets")
+
 @app.get("/")
 async def get_index():
-    if os.path.exists("index.html"):
-        with open("index.html", "r", encoding="utf-8") as f:
+    # Serve React Build
+    if os.path.exists("dist/index.html"):
+        with open("dist/index.html", "r", encoding="utf-8") as f:
             return HTMLResponse(f.read())
-    return HTMLResponse("<h1>Luna Book Backend Running</h1>")
+    # Fallback to Legacy if build missing (Safety)
+    if os.path.exists("index_legacy.html"):
+        with open("index_legacy.html", "r", encoding="utf-8") as f:
+            return HTMLResponse(f.read())
+    return HTMLResponse("<h1>Luna Book: Please run 'npm run build'</h1>")
 
 @app.get("/{filename}")
 async def get_file(filename: str):
+    # Try serving from dist root (e.g. vite.svg)
+    dist_path = os.path.join(WORKING_DIR, "dist", filename)
+    if os.path.exists(dist_path) and os.path.isfile(dist_path):
+        return FileResponse(dist_path)
+    
+    # Try serving from public (legacy mapping if copied to dist/public or root)
+    # Since we moved app.js to public/, Vite copies it to dist/ root on build.
+    # So dist/app.js should exist.
+    
+    # Legacy fallback for root files
     file_path = os.path.join(WORKING_DIR, filename)
     if os.path.exists(file_path) and os.path.isfile(file_path):
         return FileResponse(file_path)
@@ -281,7 +349,7 @@ async def restart_kernel_endpoint():
     return {"status": "Use WebSocket execution to manage state"}
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket, userId: str = "guest"):
     await websocket.accept()
     
     # Create new session for this connection
@@ -290,7 +358,8 @@ async def websocket_endpoint(websocket: WebSocket):
     sessions[session_id] = session
     
     try:
-        await session.start()
+        await session.start(user_id=userId)
+
         
         while True:
             data = await websocket.receive_text()
@@ -325,5 +394,5 @@ async def websocket_endpoint(websocket: WebSocket):
 
 if __name__ == "__main__":
     import uvicorn
-    print("Starting Luna Book with Real Jupyter Backend on http://localhost:8009")
-    uvicorn.run(app, host="127.0.0.1", port=8009)
+    print("Starting Luna Book with Real Jupyter Backend on http://localhost:8020")
+    uvicorn.run(app, host="127.0.0.1", port=8020)

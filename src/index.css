@@ -1,0 +1,671 @@
+@import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    /* Glassmorphism Variables - Premium Light Theme */
+    --glass-bg: rgba(255, 255, 255, 0.75);
+    --glass-border: rgba(255, 255, 255, 0.6);
+    --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+    --backdrop-blur: 24px;
+
+    /* Brand Colors - Vibrant & Modern */
+    --primary-color: #6c5ce7;
+    --primary-gradient: linear-gradient(135deg, #6c5ce7 0%, #a55eea 100%);
+
+    --secondary-color: #00b894;
+    --accent-pink: #fd79a8;
+    --accent-blue: #0984e3;
+    --accent-red: #d63031;
+    --accent-green: #00b894;
+    --accent-purple: #6c5ce7;
+
+    /* Text - High Readability */
+    --text-dark: #2d3436;
+    --text-medium: #636e72;
+    --text-light: #b2bec3;
+
+    /* Backgrounds */
+    --bg-base: #fdfdfd;
+    --bg-gradient: radial-gradient(circle at 10% 20%, rgb(242, 246, 255) 0.1%, rgb(253, 254, 255) 90.1%);
+
+    /* Execution Page */
+    --colab-bg: #ffffff;
+    --colab-surface: #f8f9fa;
+    /* Lighter surface for blocks */
+    --colab-text: #2d3436;
+    --colab-border: #dfe6e9;
+
+    /* Input/Output Colors */
+    --code-bg: #1e1e1e;
+    /* Keep code editor dark for contrast/dev-feel */
+    --output-bg: #ffffff;
+}
+
+body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    background: white;
+    overflow: hidden;
+}
+
+/* -------------------------------------------------------------------------- */
+/* LOADING PAGE */
+/* -------------------------------------------------------------------------- */
+.loading-page {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 9999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: white;
+}
+
+.blobs-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.blob {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(60px);
+    opacity: 0.6;
+}
+
+.blob-1 {
+    width: 400px;
+    height: 400px;
+    background: rgba(108, 92, 231, 0.4);
+    top: -100px;
+    left: -100px;
+}
+
+.blob-2 {
+    width: 300px;
+    height: 300px;
+    background: rgba(0, 184, 148, 0.4);
+    bottom: -50px;
+    right: -50px;
+}
+
+.blob-3 {
+    width: 250px;
+    height: 250px;
+    background: rgba(232, 67, 147, 0.4);
+    bottom: 20%;
+    left: 30%;
+}
+
+.blob-4 {
+    width: 500px;
+    height: 500px;
+    background: rgba(9, 132, 227, 0.2);
+    top: 10%;
+    right: 20%;
+}
+
+.blob-5 {
+    width: 350px;
+    height: 350px;
+    background: rgba(108, 92, 231, 0.25);
+    bottom: 10%;
+    left: 10%;
+}
+
+.loading-content {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--backdrop-blur));
+    -webkit-backdrop-filter: blur(var(--backdrop-blur));
+    padding: 3rem 5rem;
+    border-radius: 24px;
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    text-align: center;
+    z-index: 10;
+}
+
+.app-title {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 3.5rem;
+    font-weight: 800;
+    margin-bottom: 0.5rem;
+    background: linear-gradient(135deg, var(--primary-color), var(--accent-pink));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.tagline {
+    font-size: 1rem;
+    color: var(--text-light);
+    letter-spacing: 3px;
+    font-weight: 600;
+    margin-bottom: 3rem;
+    text-transform: uppercase;
+}
+
+.loader-container {
+    width: 200px;
+    height: 6px;
+    background: #e0e0e0;
+    border-radius: 3px;
+    overflow: hidden;
+    margin: 0 auto;
+}
+
+.loader-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary-color), var(--accent-pink));
+}
+
+/* -------------------------------------------------------------------------- */
+/* HOME PAGE */
+/* -------------------------------------------------------------------------- */
+.home-page {
+    height: 100vh;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    background: white;
+}
+
+.home-glass-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--backdrop-blur));
+    border: 1px solid var(--glass-border);
+    border-radius: 40px;
+    padding: 80px 100px;
+    text-align: center;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
+    cursor: grab;
+    z-index: 10;
+}
+
+.home-glass-card:active {
+    cursor: grabbing;
+}
+
+.app-title-small {
+    font-family: 'Unbounded';
+    font-size: 3rem;
+    font-weight: 800;
+    color: var(--text-dark);
+    margin: 0;
+}
+
+.tagline-small {
+    font-size: 1.1rem;
+    color: var(--primary-color);
+    font-weight: 600;
+    margin-bottom: 3rem;
+    letter-spacing: 2px;
+}
+
+.home-actions {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    margin-bottom: 40px;
+}
+
+.btn-large {
+    padding: 16px 40px;
+    font-size: 1.1rem;
+    border-radius: 60px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #6c5ce7, #a55eea);
+    color: white;
+}
+
+.btn-whatsapp {
+    background: #25D366;
+    color: white;
+    padding: 12px 30px;
+    border-radius: 50px;
+    text-decoration: none;
+    font-weight: 600;
+    display: inline-block;
+}
+
+/* -------------------------------------------------------------------------- */
+/* FOOTER */
+/* -------------------------------------------------------------------------- */
+.footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    padding: 20px 0;
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid rgba(255, 255, 255, 0.5);
+    text-align: center;
+    z-index: 20;
+}
+
+.footer-content {
+    max-width: 1000px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+}
+
+.footer-section h4 {
+    color: var(--primary-color);
+    margin-bottom: 5px;
+    font-size: 0.9rem;
+}
+
+.footer-section p {
+    font-size: 0.85rem;
+    color: var(--text-light);
+    margin: 2px 0;
+}
+
+.footer-section a {
+    color: var(--accent-blue);
+    text-decoration: none;
+}
+
+
+/* -------------------------------------------------------------------------- */
+/* EXECUTION PAGE (Modern Glassmorphism) */
+/* -------------------------------------------------------------------------- */
+.main-page {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-base);
+    background-image: var(--bg-gradient);
+    color: var(--text-dark);
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* Header */
+.header {
+    height: 64px;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    flex-shrink: 0;
+    z-index: 50;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
+}
+
+.header h1 {
+    font-family: 'Unbounded', sans-serif;
+    background: linear-gradient(135deg, var(--primary-color), var(--accent-pink));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.status {
+    background: #e0f2f1;
+    color: #00897b;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    margin-left: 12px;
+}
+
+/* Buttons */
+.btn {
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+}
+
+.btn:active {
+    transform: translateY(0);
+}
+
+.btn-secondary {
+    background: white;
+    border: 1px solid #e1e4e8;
+    color: var(--text-dark);
+    padding: 8px 16px;
+    margin-left: 8px;
+    font-size: 0.9rem;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.btn-secondary:hover {
+    background: #f8f9fa;
+    border-color: #d1d5da;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+}
+
+.btn-primary {
+    background: var(--primary-color);
+    color: white;
+    padding: 8px 20px;
+    margin-left: 8px;
+    box-shadow: 0 4px 10px rgba(108, 92, 231, 0.3);
+}
+
+.btn-primary:hover {
+    background: #5a4bcf;
+    box-shadow: 0 6px 15px rgba(108, 92, 231, 0.4);
+}
+
+.btn-accent {
+    background: var(--accent-blue);
+    color: white;
+    padding: 8px 16px;
+    margin-left: 8px;
+}
+
+/* Notebook Area */
+.notebook-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 40px;
+    scroll-behavior: smooth;
+}
+
+.cells-container {
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+/* Cell Structure */
+.cell {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 32px;
+    position: relative;
+    opacity: 0;
+    animation: fadeInMethod 0.5s forwards;
+}
+
+@keyframes fadeInMethod {
+    to {
+        opacity: 1;
+    }
+}
+
+/* Gutter (Play Button) */
+.cell-gutter {
+    width: 44px;
+    padding-top: 40px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.play-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    border: none;
+    background: white;
+    color: var(--primary-color);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.play-btn:hover {
+    transform: scale(1.1);
+    background: var(--primary-color);
+    color: white;
+    box-shadow: 0 6px 16px rgba(108, 92, 231, 0.4);
+}
+
+.play-btn.running {
+    animation: spin 1s infinite linear;
+    border: 3px solid #e0e0e0;
+    border-top-color: var(--primary-color);
+    background: transparent;
+    color: transparent;
+    box-shadow: none;
+    pointer-events: none;
+}
+
+/* Split Layout Styling */
+.cell-split-layout {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    /* Split 50/50 */
+    gap: 24px;
+    align-items: start;
+}
+
+/* Common Pane Styling */
+.cell-editor-pane,
+.cell-output-pane {
+    background: transparent;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
+}
+
+.pane-header {
+    padding: 8px 16px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #888;
+}
+
+/* Editor Pane specific */
+.cell-editor-pane {
+    background: #1e1e1e;
+    /* Dark theme container match */
+    border: 1px solid #333;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    /* Deeper shadow for editor */
+}
+
+.editor-container {
+    background: #1e1e1e;
+}
+
+.monaco-editor-background {
+    background-color: #1e1e1e !important;
+}
+
+.margin {
+    background-color: #1e1e1e !important;
+}
+
+/* Output Pane specific */
+.cell-output-pane {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+.output-container {
+    padding: 20px;
+    min-height: 100px;
+    max-height: 600px;
+    overflow-y: auto;
+    font-family: 'JetBrains Mono', 'Roboto Mono', monospace;
+    font-size: 0.9rem;
+    color: #2d3436;
+    background: transparent;
+}
+
+.output-container pre {
+    white-space: pre-wrap;
+    margin: 0;
+    line-height: 1.6;
+}
+
+/* Controls Overlay */
+.cell-controls-overlay {
+    position: absolute;
+    right: 20px;
+    top: -10px;
+    background: white;
+    border-radius: 20px;
+    padding: 4px 10px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.2s;
+    pointer-events: none;
+}
+
+.cell:hover .cell-controls-overlay {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.icon-btn {
+    color: #555;
+    font-size: 1.1rem;
+    padding: 6px;
+    border-radius: 50%;
+    transition: background 0.2s;
+}
+
+.icon-btn:hover {
+    background: #f0f0f0;
+    color: #d63031;
+}
+
+.add-cell-btn {
+    display: block;
+    margin: 30px auto;
+    padding: 12px 30px;
+    background: white;
+    color: var(--text-dark);
+    border: 1px solid #ddd;
+    border-radius: 30px;
+    font-weight: 600;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s;
+}
+
+.add-cell-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* MOBILE RESPONSIVENESS */
+@media (max-width: 900px) {
+    .cell-split-layout {
+        grid-template-columns: 1fr;
+        /* Stacked */
+        gap: 16px;
+    }
+
+    .cell {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .cell-gutter {
+        width: 100%;
+        padding-top: 0;
+        justify-content: flex-start;
+        margin-bottom: 8px;
+    }
+
+    .header {
+        padding: 0 16px;
+        height: auto;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding-bottom: 10px;
+    }
+
+    .header-right {
+        overflow-x: auto;
+        width: 100%;
+        display: flex;
+        padding-bottom: 5px;
+    }
+}
+
+/* Modals */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(5px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.modal-content {
+    background: white;
+    color: var(--text-dark);
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+    width: 90%;
+    max-width: 450px;
+    padding: 30px;
+}
+
+.modal h3 {
+    margin-top: 0;
+    font-family: 'Unbounded';
+    font-size: 1.2rem;
+}
+
+.share-link {
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+    color: #333;
+}

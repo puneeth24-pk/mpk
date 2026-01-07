@@ -1,0 +1,14 @@
+[phases.setup]
+nixPkgs = ["python311", "nodejs-18_x", "zeromq"]
+
+[phases.install]
+cmds = [
+  "pip install -r requirements.txt",
+  "npm install"
+]
+
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "uvicorn backend:app --host 0.0.0.0 --port $PORT"

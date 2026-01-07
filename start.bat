@@ -6,7 +6,7 @@ pip install -r requirements.txt
 
 echo.
 echo Starting the backend server...
-echo Open your browser to: http://localhost:8000
+echo Open your browser to: http://localhost:8009
 echo.
 echo Press Ctrl+C to stop the server
 python backend.py

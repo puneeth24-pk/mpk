@@ -12,3 +12,4 @@ venv.bak/
 .vscode/
 .idea/
 *.log
+node_modules
