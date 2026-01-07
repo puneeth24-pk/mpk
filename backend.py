@@ -394,5 +394,8 @@ async def websocket_endpoint(websocket: WebSocket, userId: str = "guest"):
 
 if __name__ == "__main__":
     import uvicorn
-    print("Starting Luna Book with Real Jupyter Backend on http://localhost:8020")
-    uvicorn.run(app, host="127.0.0.1", port=8020)
+    # Respect Railway's $PORT environment variable
+    port = int(os.environ.get("PORT", 8020))
+    # Bind to 0.0.0.0 for external access in cloud environments
+    print(f"Starting Luna Book with Real Jupyter Backend on http://0.0.0.0:{port}")
+    uvicorn.run(app, host="0.0.0.0", port=port)
