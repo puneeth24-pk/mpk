@@ -301,6 +301,10 @@ async def shutdown_event():
 
 app.mount("/assets", StaticFiles(directory="dist/assets"), name="assets")
 
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "service": "luna-book"}
+
 @app.get("/")
 async def get_index():
     # Serve React Build
